@@ -1,0 +1,19 @@
+{
+  "name": "beerbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@xboxreplay/xboxlive-auth": "^4.1.0",
+    "minecraft-protocol": "^1.54.0",
+    "mineflayer": "^4.25.0",
+    "prismarine-auth": "^2.6.0",
+    "prismarine-viewer": "^1.30.0"
+  }
+}
