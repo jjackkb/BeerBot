@@ -1,17 +1,22 @@
 import { createBot } from 'mineflayer';
+import { Vec3 } from 'vec3';
 
-var direction = "south";
-var lineMine = false;
+
+const direction = "west";
+
 const yawValues = {
   east: -Math.PI / 2,
   north: 0,
   west: Math.PI / 2,
   south: Math.PI
 };
+const pitchValues = Array.from({ length: 10 }, (_, i) =>
+  0 + ((-Math.PI / 2 + 0.35) - 0) * (i / (10 - 1))
+);
 
 const bot = createBot({
-  host: '100.91.214.16',
-  port: 25565,
+  host: 'localhost',
+  port: 60677,
   username: 'BeerBot',
   version: '1.12.2'
 });
@@ -20,41 +25,27 @@ const bot = createBot({
 
 // Utility
 
-async function findMinableBlocks() {
-  const blockVec = bot.findBlocks({
-    matching: (block) => {
-      return block.name !== 'air';
-    },
-    maxDistance: 6,
-    count: 25
-  });
-
-  return blockVec || [];
-}
-
-async function checkBlockInLine(block, yLevel) {
-  const botX = Math.floor(bot.entity.position.x);
-  const botY = Math.floor(bot.entity.position.y);
-  const botZ = Math.floor(bot.entity.position.z);
-
-  const blockX = block.position.x;
-  const blockY = block.position.y;
-  const blockZ = block.position.z;
-
-  if (direction == "west" && blockX <= botX && blockZ == botZ) {
-    return (yLevel ? blockY === botY + 1 : blockY === botY);
+async function findBlockFromOffset(x, y, z) {
+  var count = 0;
+  var block = bot.blockAt(new Vec3(bot.entity.position.x + x, bot.entity.position.y + y, bot.entity.position.z + z));
+  while (block.name == 'air') {
+    switch (direction) {
+      case "east":
+        block = bot.blockAt(new Vec3(bot.entity.position.x + x + count, bot.entity.position.y + y, bot.entity.position.z + z));
+        break;
+      case "west":
+        block = bot.blockAt(new Vec3(bot.entity.position.x + x - count, bot.entity.position.y + y, bot.entity.position.z + z));
+        break;
+      case "north":
+        block = bot.blockAt(new Vec3(bot.entity.position.x + x, bot.entity.position.y + y, bot.entity.position.z + z - count));
+        break;
+      case "south":
+        block = bot.blockAt(new Vec3(bot.entity.position.x + x, bot.entity.position.y + y, bot.entity.position.z + z + count));
+        break;
+    }
+    count = count + 1;
   }
-  if (direction == "east" && blockX >= botX && blockZ == botZ) {
-    return (yLevel ? blockY === botY + 1 : blockY === botY);
-  }
-  if (direction == "north" && blockX == botX && blockZ <= botZ) {
-    return (yLevel ? blockY === botY + 1 : blockY === botY);
-  }
-  if (direction == "south" && blockX == botX && blockZ >= botZ) {
-    return (yLevel ? blockY === botY + 1 : blockY === botY);
-  }
-
-  return false;
+  return block;
 }
 
 // Stage Checks
@@ -73,42 +64,42 @@ function mineInvCheck() {
 
 // Bot controls
 
-async function mineLine(levelY) {
-  if (lineMine == false)
-    return;
-  if (!mineInvCheck()) {
-    bot.chat("Failed inventory check!"); return;
-  }
-
-  var block;
-  const blocks = await findMinableBlocks();
-
-  for (let i = 0; i < blocks.length; i++) {
-    if (await checkBlockInLine(bot.blockAt(blocks[i]), levelY)) {
-      block = bot.blockAt(blocks[i]);
-      if (bot.canDigBlock(block)) {
-        try {
-          await bot.dig(block, true);
-        } catch (err) {
-          console.log(err);
-        }
-      }
+async function lineMine(length) {
+  for (var i = 0; i < length; i++) {
+    if (!mineInvCheck()) {
+      bot.chat("I don't have a pickaxe!");
+      return;
     }
-  }
+    await bot.look(yawValues[direction], 0);
+    var topBlock = await findBlockFromOffset(0, 1, 0);
+    var bottomBlock = await findBlockFromOffset(0, 0, 0);
 
-  await walkForward();
-  mineLine(!levelY);
+    if (!await mineBlock(topBlock)) {
+      await walk(2);
+      await mineBlock(topBlock);
+    }
+    if (!await mineBlock(bottomBlock)) {
+      await walk(2);
+      await mineBlock(bottomBlock);
+    }
+
+    await walk(5);
+  }
 }
 
-async function walkForward() {
-  await bot.look(yawValues[direction], 0);
-  const dirVec = bot.blockAtCursor();
+async function mineBlock(block) {
+  if (bot.canDigBlock(block)) {
+    await bot.dig(block);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+async function walk(ticks) {
   bot.setControlState('forward', true);
 
-  while (bot.entity.position.distanceTo(dirVec) > 0.5) {
-    await bot.lookAt(dirVec);
-    await bot.waitForTicks(4);
-  }
+  await bot.waitForTicks(ticks);
 
   bot.setControlState('forward', false);
 }
@@ -148,12 +139,10 @@ bot.on('chat', (username, message) => {
   if (username === bot.username) return;
   console.log(`<${username}> ${message}`);
   if (message === 'bot mine line') {
-    lineMine = true;
-    mineLine(true);
+    lineMine(100);
   }
   if (message === 'bot stop') {
-    bot.look(yawValues[direction], 0);
-    lineMine = false;
+    bot.quit();
   }
 });
 
