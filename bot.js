@@ -1,8 +1,7 @@
 import { createBot } from 'mineflayer';
 import { Vec3 } from 'vec3';
 
-
-const direction = "west";
+var direction = "south";
 
 const yawValues = {
   east: -Math.PI / 2,
@@ -10,13 +9,10 @@ const yawValues = {
   west: Math.PI / 2,
   south: Math.PI
 };
-const pitchValues = Array.from({ length: 10 }, (_, i) =>
-  0 + ((-Math.PI / 2 + 0.35) - 0) * (i / (10 - 1))
-);
 
 const bot = createBot({
   host: 'localhost',
-  port: 60677,
+  port: 55052,
   username: 'BeerBot',
   version: '1.12.2'
 });
@@ -71,16 +67,29 @@ async function lineMine(length) {
       return;
     }
     await bot.look(yawValues[direction], 0);
+
     var topBlock = await findBlockFromOffset(0, 1, 0);
     var bottomBlock = await findBlockFromOffset(0, 0, 0);
 
-    if (!await mineBlock(topBlock)) {
-      await walk(2);
-      await mineBlock(topBlock);
-    }
-    if (!await mineBlock(bottomBlock)) {
-      await walk(2);
-      await mineBlock(bottomBlock);
+    while (true) {
+
+      if (topBlock && bot.canDigBlock(topBlock)) {
+        await mineBlock(topBlock);
+      }
+
+      if (bottomBlock && bot.canDigBlock(bottomBlock)) {
+        await mineBlock(bottomBlock);
+      }
+
+      const topBlockNow = bot.blockAt(topBlock.position);
+      const bottomBlockNow = bot.blockAt(bottomBlock.position);
+
+      if (topBlockNow.name === "air" && bottomBlockNow.name === "air") {
+        break;
+      }
+
+      if (topBlockNow.name !== "air") topBlock = topBlockNow;
+      if (bottomBlockNow.name !== "air") bottomBlock = bottomBlockNow;
     }
 
     await walk(5);
@@ -138,11 +147,12 @@ bot.on('entityHurt', (entity => {
 bot.on('chat', (username, message) => {
   if (username === bot.username) return;
   console.log(`<${username}> ${message}`);
-  if (message === 'bot mine line') {
-    lineMine(100);
-  }
-  if (message === 'bot stop') {
-    bot.quit();
+  message = message.split(" ");
+  if (message[0] === 'bot') {
+    if (message[1] === 'mine' && message.length == 4) {
+      direction = message[2];
+      lineMine(message[3]);
+    }
   }
 });
 
